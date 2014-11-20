@@ -1,7 +1,3 @@
-// Sweep
-// by BARRAGAN <http://barraganstudio.com> 
-// This example code is in the public domain.
-
 
 #include <Servo.h> 
  
@@ -18,24 +14,31 @@ int rightspeed = 90;
 // use this value to determine the size of the readings array.
 const int numReadings = 10;
 
-int readings[numReadings];      // the readings from the analog input
-int dimmerReadings[numReadings];
+int readingsX[numReadings];      // the readings from the analog input
+int readingsY[numReadings];
 int index = 0;                  // the index of the current reading
-int total = 0; 
-int dimmerTotal = 0;// the running total
-int average = 0;                // the average
-int dimmerAverage = 1;
-int fullleft = 0;
-int fullright = 1050;
-int fullscale= fullright - fullleft;
-int inputPin = A0;
-int dimmerPin = A1;
-int buttonPin = 4;
+int totalX = 0; 
+int totalY = 0;// the running total
+int averageX = 0;                // the average
+int averageY = 1;
+int midX=489;
+int midY=489;
+int joystickX = A0;
+int joystickY = A1;
+int buttonPin = 0;
 boolean on = false;
 long lastDebounceTime = 0;  // the last time the output pin was toggled
 long debounceDelay = 500;    // the debounce time; increase if the output flickers
 
-
+int scaleJoystickInput(int input){
+  if (input >=500){
+  //  Serial.println( sqrt(5*(input-500))/2);
+   return sqrt(5*(input-midX))/2;
+  } else {
+  //  Serial.println(- sqrt(-5*(input-500))/2);
+    return - sqrt(-5*(input-midX))/2;
+  }
+}
 
 void setup() 
 { 
@@ -43,11 +46,11 @@ void setup()
   rightservo.attach(10); 
    // initialize serial communication with computer:
   Serial.begin(9600);   
-  // initialize all the readings to 0: 
+  // initialize all the readings to half of their full values, this is the rest position of the joystick: 
   for (int thisReading = 0; thisReading < numReadings; thisReading++)
   {
-    readings[thisReading] = 0;    
-    dimmerReadings[thisReading] = 0; 
+    readingsX[thisReading] = 0;//(fullright-fullleft)/2;    
+    readingsY[thisReading] = 0;//(fullback-fullforward)/2; 
   }
   pinMode(buttonPin, INPUT);
 } 
@@ -57,7 +60,7 @@ void loop()
 { 
   int reading = digitalRead(buttonPin);
   
-  if (reading == HIGH) {
+  if (reading == LOW) {
     if ((millis() - lastDebounceTime) > debounceDelay) {
     // whatever the reading is at, it's been there for longer
     // than the debounce delay, so take it as the actual current state:
@@ -70,11 +73,15 @@ void loop()
   }
   //Serial.println(on);
   // subtract the last reading:
-  total= total - readings[index];         
+  totalX= totalX - readingsX[index]; 
+  totalY= totalY - readingsY[index];   
   // read from the sensor:  
-  readings[index] = analogRead(inputPin); 
+  readingsX[index] = analogRead(joystickX); 
+  readingsY[index] = analogRead(joystickY); 
+  
   // add the reading to the total:
-  total= total + readings[index];       
+  totalX= totalX + readingsX[index];  
+  totalY= totalY + readingsY[index];  
   // advance to the next position in the array:  
   index = index + 1;                    
 
@@ -84,46 +91,34 @@ void loop()
     index = 0;                           
 
   // calculate the average:
-  average = total / numReadings;         
-  // send it to the computer as ASCII digits
-  Serial.println(average);   
-//  delay(1);        // delay in between reads for stability
-  int leftUpdateTemp = 0;
-  int rightUpdateTemp = 0;
-  
-  int servoSpeeds[7] = {30,30,30,30,20,10,-5};
-  int servoIndex = 7*(average - fullleft) / fullscale;
-  leftUpdateTemp = servoSpeeds[servoIndex];
-  rightUpdateTemp = servoSpeeds[6 - servoIndex];
-  
-  int leftupdate = 90 - (leftUpdateTemp * 1) * dimmerAverage;
-  int rightupdate = 95 + (rightUpdateTemp * 1) * dimmerAverage;
-    
-  
+  averageX = totalX / numReadings;
+  averageY = totalY / numReadings;
+
+  int leftupdate=0;
+  int rightupdate=0;
+  //if( averageY >=500){
+    leftupdate = 90 + scaleJoystickInput(averageX) + scaleJoystickInput(averageY);
+    rightupdate = 95 +scaleJoystickInput(averageX) - scaleJoystickInput(averageY);
+ // } else { //this inverts left and right when going backwards. The tradeoffs: feel more natural when thinking in reverse, but can be very problematic when just trying to turn (can swtich directions with small accidental shifts in y
+  //  leftupdate = 90 - scaleJoystickInput(averageX) + scaleJoystickInput(averageY);
+  //  rightupdate = 95 -scaleJoystickInput(averageX) - scaleJoystickInput(averageY);
+  //}
+     Serial.print(rightupdate);
+     Serial.println(" right servo speed.");
   if (on) {
     if (leftupdate != leftspeed){
-     leftservo.write(leftupdate);  
-     Serial.println("left servo updated");
+     leftservo.write(leftupdate);
+     
     }
     if (rightupdate != rightspeed){
      rightservo.write(rightupdate);
-     Serial.println("left servo updated");
+     
     }
     rightspeed = rightupdate;
     leftspeed = leftupdate;
-  } else {
-    
-  }
-  delay(75);                       // waits 15ms for the servo to reach the position 
-
- // for(pos = 0; pos < 180; pos += 1)  // goes from 0 degrees to 180 degrees 
-  //{                                  // in steps of 1 degree 
-  //  myservo.write(pos);              // tell servo to go to position in variable 'pos' 
-  //  delay(15);                       // waits 15ms for the servo to reach the position 
-  //} 
-  //for(pos = 180; pos>=1; pos-=1)     // goes from 180 degrees to 0 degrees 
-  //{                                
-   // myservo.write(pos);              // tell servo to go to position in variable 'pos' 
-   // delay(15);                       // waits 15ms for the servo to reach the position 
-  //} 
+ } else {
+    Serial.println("off");
+ }
+  delay(75);       // waits 15ms for the servo to reach the position 
 } 
+
